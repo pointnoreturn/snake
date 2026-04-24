@@ -1,0 +1,35 @@
+
+networks:
+  telemetry_net:
+    driver: bridge
+
+services:
+
+  victoriametrics:
+    image: victoriametrics/victoria-metrics
+    container_name: victoriametrics
+    restart: unless-stopped
+    networks:
+      - telemetry_net
+    ports:
+      - "127.0.0.1:8428:8428"
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    restart: unless-stopped
+    networks:
+      - telemetry_net
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    ports:
+      - "0.0.0.0:3000:3000"
+
+  snake:
+    image: ghcr.io/pointnoreturn/snake:1.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: snake
+    restart: unless-stopped
+    network_mode: host
