@@ -60,13 +60,14 @@ func GetSelfInfo(ip string) (*pb.NodeInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer r.Close()
 
 	responses, err := r.GetRadioInfo()
 	if err != nil {
 		return nil, fmt.Errorf("GetRadioInfo() failed for connected %s: %w", ip, err)
 	}
 
-	//fmt.Printf("Feteched %d responses from %s", len(responses), ip)
+	//fmt.Printf("Feteched %d responses from %s\n", len(responses), ip)
 
 	for _, response := range responses {
 		// Return FIRST node info assuming FIRST == SELF
