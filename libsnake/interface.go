@@ -3,6 +3,7 @@ package libsnake
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -11,11 +12,21 @@ import (
 	pb "github.com/lmatte7/gomesh/github.com/meshtastic/gomeshproto"
 )
 
-func DiscoverNodes(timeout time.Duration) [][]string {
+func GetSerialNodes(devices ...string) [][]string {
+	out := make([][]string, len(devices))
+	for i, d := range devices {
+		out[i] = []string{d, d}
+	}
+	return out
+}
+
+func DiscoverNodes(ctx context.Context, timeout time.Duration) [][]string {
+	fmt.Println("Discover Meshtastic nodes...")
+
 	resolver, _ := zeroconf.NewResolver(nil)
 	entries := make(chan *zeroconf.ServiceEntry)
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	nodes := make(map[string][]string)
@@ -53,18 +64,32 @@ func DiscoverNodes(timeout time.Duration) [][]string {
 	}
 }
 
-func GetSelfInfo(ip string) (*pb.NodeInfo, error) {
+func Connect(target string) (*Connection, error) {
 
 	r := gomesh.Radio{}
-	err := r.Init(ip)
+	err := r.Init(target)
 	if err != nil {
 		return nil, err
 	}
-	defer r.Close()
 
-	responses, err := r.GetRadioInfo()
+	c := &Connection{r: r, Endpoint: target}
+
+	info, err := c.GetSelfInfo()
 	if err != nil {
-		return nil, fmt.Errorf("GetRadioInfo() failed for connected %s: %w", ip, err)
+		c.Close()
+		return nil, fmt.Errorf("Failed to GetSelfInfo for %s: %v", target, err)
+	}
+
+	c.Label = GetNodeLabel(info)
+	c.NodeId = fmt.Sprintf("!%x", info.Num)
+	return c, nil
+}
+
+func (c *Connection) GetSelfInfo() (*pb.NodeInfo, error) {
+
+	responses, err := c.r.GetRadioInfo()
+	if err != nil {
+		return nil, fmt.Errorf("GetRadioInfo() failed: %w", err)
 	}
 
 	//fmt.Printf("Feteched %d responses from %s\n", len(responses), ip)
@@ -92,4 +117,28 @@ func GetNodeLabel(info *pb.NodeInfo) string {
 	}
 
 	return fmt.Sprintf("!%x", info.Num)
+}
+
+func FindAndConnect(target string, nodes [][]string) (*Connection, error) {
+	for _, n := range nodes {
+		if strings.EqualFold(n[0], target) || n[1] == target { // match by host name or IP
+			return Connect(n[1])
+		}
+	}
+
+	for _, n := range nodes {
+		c, err := Connect(n[1])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to connect %s/%s: %v\n", n[0], n[1], err)
+			continue
+		}
+
+		if c.NodeId == target || c.Label == target { // match by label or node id
+			return c, nil
+		}
+
+		c.Close()
+	}
+
+	return nil, fmt.Errorf("Failed to find node '%s' among %d nodes.", target, len(nodes))
 }
