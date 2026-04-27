@@ -4,14 +4,20 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/pointnoreturn/snake/libweather"
 )
 
 type Telemeter struct {
-	conn *Connection
+	conn    *Connection
+	weather libweather.WeatherProvider
 }
 
-func NewTelemeter(conn *Connection) *Telemeter {
-	return &Telemeter{conn: conn}
+func NewTelemeter(conn *Connection, weather libweather.WeatherProvider) *Telemeter {
+	return &Telemeter{
+		conn:    conn,
+		weather: weather,
+	}
 }
 
 func (t *Telemeter) RunLoop(ctx context.Context) {

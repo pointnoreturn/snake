@@ -9,22 +9,28 @@ import (
 	"time"
 
 	"github.com/pointnoreturn/snake/libsnake"
+	"github.com/pointnoreturn/snake/libweather"
+
+	// This blank import triggers the automatic loading of .env
+	_ "github.com/joho/godotenv/autoload"
 )
 
 func main() {
+	var w libweather.WeatherProvider = tryMakeWeatherProvider()
+
 	targetNode := os.Getenv("TARGET_NODE")
 	if len(targetNode) == 0 {
 		panic("TARGET_NODE is empty")
 	}
 
-	var conn *libsnake.Connection = connect(targetNode)
+	var conn *libsnake.Connection = mustConnect(targetNode)
 	fmt.Println("Connected to: " + conn.String())
 
-	var t *libsnake.Telemeter = libsnake.NewTelemeter(conn)
-	t.RunLoop(context.TODO()) // TODO: Ctrl+C shutdown for signal handler
+	var t *libsnake.Telemeter = libsnake.NewTelemeter(conn, w)
+	t.RunLoop(context.TODO())
 }
 
-func connect(targetNode string) *libsnake.Connection {
+func mustConnect(targetNode string) *libsnake.Connection {
 	ip := net.ParseIP(targetNode) // try parse as IP address
 
 	if ip != nil { // connect by IP address
