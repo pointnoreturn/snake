@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/grandcat/zeroconf"
-	"github.com/lmatte7/gomesh"
-	pb "github.com/lmatte7/gomesh/github.com/meshtastic/gomeshproto"
+	pb "github.com/pointnoreturn/snake/github.com/meshtastic/go/generated"
+	"github.com/pointnoreturn/snake/libradio"
 )
 
 func GetSerialNodes(devices ...string) [][]string {
@@ -66,7 +66,7 @@ func DiscoverNodes(ctx context.Context, timeout time.Duration) [][]string {
 
 func Connect(target string) (*Connection, error) {
 
-	r := gomesh.Radio{}
+	r := libradio.Radio{}
 	err := r.Init(target)
 	if err != nil {
 		return nil, err

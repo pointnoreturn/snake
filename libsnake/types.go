@@ -1,9 +1,9 @@
 package libsnake
 
-import "github.com/lmatte7/gomesh"
+import "github.com/pointnoreturn/snake/libradio"
 
 type Connection struct {
-	r        gomesh.Radio
+	r        libradio.Radio
 	Endpoint string
 	NodeId   string
 	Label    string

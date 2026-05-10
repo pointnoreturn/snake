@@ -31,7 +31,7 @@ func parseGPS(env string) (float32, float32, error) {
 }
 
 func main() {
-	apiKey := os.Getenv("API_KEY")
+	apiKey := os.Getenv("OWM_KEY")
 	if len(apiKey) == 0 {
 		panic("no API_KEY for OpenWeatherMap")
 	}
