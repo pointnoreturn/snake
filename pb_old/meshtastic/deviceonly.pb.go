@@ -731,7 +731,7 @@ var File_meshtastic_deviceonly_proto protoreflect.FileDescriptor
 const file_meshtastic_deviceonly_proto_rawDesc = "" +
 	"\n" +
 	"\x1bmeshtastic/deviceonly.proto\x12\n" +
-	"meshtastic\x1a\x18meshtastic/channel.proto\x1a\x17meshtastic/config.proto\x1a\x1ameshtastic/localonly.proto\x1a\x15meshtastic/mesh.proto\x1a\x1ameshtastic/telemetry.proto\x1a\fnanopb.proto\"\xc7\x01\n" +
+	"meshtastic\x1a\x18meshtastic/channel.proto\x1a\x17meshtastic/config.proto\x1a\x1ameshtastic/localonly.proto\x1a\x15meshtastic/mesh.proto\x1a\x1ameshtastic/telemetry.proto\"\xc7\x01\n" +
 	"\fPositionLite\x12\x1d\n" +
 	"\n" +
 	"latitude_i\x18\x01 \x01(\x0fR\tlatitudeI\x12\x1f\n" +
@@ -783,10 +783,10 @@ const file_meshtastic_deviceonly_proto_rawDesc = "" +
 	"\rdid_gps_reset\x18\v \x01(\bB\x02\x18\x01R\vdidGpsReset\x127\n" +
 	"\vrx_waypoint\x18\f \x01(\v2\x16.meshtastic.MeshPacketR\n" +
 	"rxWaypoint\x12\\\n" +
-	"\x19node_remote_hardware_pins\x18\r \x03(\v2!.meshtastic.NodeRemoteHardwarePinR\x16nodeRemoteHardwarePins\"\x84\x01\n" +
+	"\x19node_remote_hardware_pins\x18\r \x03(\v2!.meshtastic.NodeRemoteHardwarePinR\x16nodeRemoteHardwarePins\"X\n" +
 	"\fNodeDatabase\x12\x18\n" +
-	"\aversion\x18\x01 \x01(\rR\aversion\x12Z\n" +
-	"\x05nodes\x18\x02 \x03(\v2\x18.meshtastic.NodeInfoLiteB*\x92?'\x92\x01$std::vector<meshtastic_NodeInfoLite>R\x05nodes\"X\n" +
+	"\aversion\x18\x01 \x01(\rR\aversion\x12.\n" +
+	"\x05nodes\x18\x02 \x03(\v2\x18.meshtastic.NodeInfoLiteR\x05nodes\"X\n" +
 	"\vChannelFile\x12/\n" +
 	"\bchannels\x18\x01 \x03(\v2\x13.meshtastic.ChannelR\bchannels\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\rR\aversion\"\x9d\x02\n" +
@@ -796,7 +796,7 @@ const file_meshtastic_deviceonly_proto_rawDesc = "" +
 	"\x06config\x18\x03 \x01(\v2\x17.meshtastic.LocalConfigR\x06config\x12B\n" +
 	"\rmodule_config\x18\x04 \x01(\v2\x1d.meshtastic.LocalModuleConfigR\fmoduleConfig\x123\n" +
 	"\bchannels\x18\x05 \x01(\v2\x17.meshtastic.ChannelFileR\bchannels\x12&\n" +
-	"\x05owner\x18\x06 \x01(\v2\x10.meshtastic.UserR\x05ownerBn\x92?\v\xc2\x01\b<vector>\n" +
+	"\x05owner\x18\x06 \x01(\v2\x10.meshtastic.UserR\x05ownerB`\n" +
 	"\x14org.meshtastic.protoB\n" +
 	"DeviceOnlyZ\"github.com/meshtastic/go/generated\xaa\x02\x14Meshtastic.Protobufs\xba\x02\x00b\x06proto3"
 
@@ -869,7 +869,6 @@ func file_meshtastic_deviceonly_proto_init() {
 	file_meshtastic_localonly_proto_init()
 	file_meshtastic_mesh_proto_init()
 	file_meshtastic_telemetry_proto_init()
-	file_nanopb_proto_init()
 	file_meshtastic_deviceonly_proto_msgTypes[1].OneofWrappers = []any{}
 	file_meshtastic_deviceonly_proto_msgTypes[2].OneofWrappers = []any{}
 	type x struct{}
