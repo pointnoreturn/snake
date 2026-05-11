@@ -1,6 +1,9 @@
 package libsnake
 
-import "github.com/pointnoreturn/snake/libradio"
+import (
+	"github.com/grandcat/zeroconf"
+	"github.com/pointnoreturn/snake/libradio"
+)
 
 type Connection struct {
 	r        libradio.Radio
@@ -18,4 +21,17 @@ func (c *Connection) String() string {
 		return c.Endpoint
 	}
 	return c.Label
+}
+
+type DiscoveredService struct {
+	Endpoint string
+	Entry    *zeroconf.ServiceEntry
+	Args     map[string]string
+}
+
+type MeshtasticNode struct {
+	Service   DiscoveredService
+	NodeNum   uint32
+	ShortName string
+	Label     string
 }
