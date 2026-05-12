@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"net"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
+	"github.com/pointnoreturn/snake/libradio"
 	"github.com/pointnoreturn/snake/libsnake"
 	"github.com/pointnoreturn/snake/libweather"
 
@@ -16,6 +18,14 @@ import (
 )
 
 func main() {
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+		syscall.SIGHUP,
+	)
+	defer stop()
+
 	var w libweather.WeatherProvider = InitWeatherProvider()
 
 	targetNode := os.Getenv("TARGET_NODE")
@@ -23,19 +33,19 @@ func main() {
 		panic("TARGET_NODE is empty")
 	}
 
-	var c *libsnake.MeshtasticClient = InitClient(context.TODO(), targetNode)
+	var c *libsnake.MeshtasticClient = InitClient(ctx, targetNode)
 	defer c.Close()
-	fmt.Printf("Connected to: %s (!%x)\n", c.Label, c.MyNode.MyNodeNum)
+	fmt.Printf("Connected to: %s (!%x) at %s\n", c.Label, c.MyNode.MyNodeNum, c.Endpoint)
 
 	var t *libsnake.Telemeter = libsnake.NewTelemeter(c, w)
-	t.RunLoop(context.TODO())
+	t.RunLoop(ctx)
 }
 
 func InitClient(ctx context.Context, targetNode string) *libsnake.MeshtasticClient {
-	ip := net.ParseIP(targetNode) // try parse as IP address
+	ip, isIP := libradio.ParseTCPAddress(targetNode) // try parse as IP address
 
-	if ip != nil { // connect by IPv4/IPv6 address
-		c, err := libsnake.NewMeshtasticClient(ctx, ip.String())
+	if isIP { // connect by IPv4/IPv6 address
+		c, err := libsnake.NewMeshtasticClient(ctx, ip)
 		if err != nil {
 			panic(fmt.Errorf("Failed to connect to TCP '%s': %w", targetNode, err))
 		}

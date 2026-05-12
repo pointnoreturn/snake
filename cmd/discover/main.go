@@ -4,14 +4,24 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/pointnoreturn/snake/libsnake"
 )
 
 func main() {
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+		syscall.SIGHUP,
+	)
+	defer stop()
+
 	fmt.Println("Discover advertised services.")
-	services := libsnake.Discover(context.Background(), 10*time.Second)
+	services := libsnake.Discover(ctx, 10*time.Second)
 	if len(services) == 0 {
 		panic("I have discovered no broadcast services.")
 	}
@@ -36,7 +46,7 @@ func main() {
 	for _, n := range nodes {
 
 		fmt.Printf("test %s...\n", n.Service.Endpoint)
-		c, err := libsnake.NewMeshtasticClient(context.Background(), n.Service.Endpoint)
+		c, err := libsnake.NewMeshtasticClient(ctx, n.Service.Endpoint)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed %s (%s): %v\n", n.Service.Endpoint, n.Label, err)
 			continue

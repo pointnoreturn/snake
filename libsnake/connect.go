@@ -66,6 +66,8 @@ func Discover(ctx context.Context, timeout time.Duration) []DiscoveredService {
 				Args:     args,
 			})
 
+		case <-ctx.Done():
+			return services
 		case <-timer.C:
 			return services
 		}
@@ -185,10 +187,10 @@ func NewMeshtasticClient(ctx context.Context, target string) (*MeshtasticClient,
 		Endpoint: target,
 	}
 
-	myNodeInfo, nodes, err := c.initializeNodes(libradio.ConfigId_ConfigOnly)
+	myNodeInfo, nodes, err := c.initializeNodes(ctx, libradio.ConfigId_ConfigOnly)
 	if err != nil {
 		c.Close()
-		return nil, fmt.Errorf("Failed to GetSelfInfo for %s: %v", target, err)
+		return nil, fmt.Errorf("Failed NewMeshtasticClient for %s: %v", target, err)
 	}
 
 	if myNodeInfo == nil || len(nodes) < 1 {
@@ -203,9 +205,9 @@ func NewMeshtasticClient(ctx context.Context, target string) (*MeshtasticClient,
 	return c, nil
 }
 
-func (c *MeshtasticClient) initializeNodes(configId uint32) (*pb.MyNodeInfo, []*pb.NodeInfo, error) {
+func (c *MeshtasticClient) initializeNodes(ctx context.Context, configId uint32) (*pb.MyNodeInfo, []*pb.NodeInfo, error) {
 	nodes := []*pb.NodeInfo{}
-	myNodeInfo, responses, err := c.initializeBase(configId, true)
+	myNodeInfo, responses, err := c.initializeBase(ctx, configId, true)
 	if err != nil {
 		return myNodeInfo, nodes, err
 	}
@@ -219,9 +221,9 @@ func (c *MeshtasticClient) initializeNodes(configId uint32) (*pb.MyNodeInfo, []*
 	return myNodeInfo, nodes, err
 }
 
-func (c *MeshtasticClient) initializeBase(configId uint32, verifyCompleteId bool) (*pb.MyNodeInfo, []*pb.FromRadio, error) {
+func (c *MeshtasticClient) initializeBase(ctx context.Context, configId uint32, verifyCompleteId bool) (*pb.MyNodeInfo, []*pb.FromRadio, error) {
 
-	responses, err := c.Socket.SendWantConfigId(configId)
+	responses, err := c.Socket.SendWantConfigId(ctx, configId)
 	if err != nil {
 		return nil, responses, err
 	}
