@@ -1,10 +1,10 @@
 # snake
 
-Telemetry graphs / stats generator for meshtastic node.
+Meshtastic health reporting to track stationary nodes in Grafana
 
-Meshtastic Node -> (TCP/USB) -> snake -> Victoria Metrics -> Grafana
+     Meshtastic Node -> (Wi-Fi/USB) -> snake -> Victoria Metrics (DB) -> Grafana (display)
 
-Collects useful stats for better performance report over time.
+Collects useful stats for performance tests over time.
 
 
 # Development
