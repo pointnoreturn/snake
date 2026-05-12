@@ -31,15 +31,17 @@ func main() {
 		fmt.Printf("- Node: [%s] id=!%x\tnum=%d\tshort=%s\t%s\t%s:%d\n", n.Label, n.NodeNum, n.NodeNum, n.ShortName, n.Service.Endpoint, n.Service.Entry.HostName, n.Service.Entry.Port)
 	}
 
+	fmt.Println("Test every node connect-and-disconnect...")
+
 	for _, n := range nodes {
 
 		fmt.Printf("test %s...\n", n.Service.Endpoint)
 		c, err := libsnake.NewMeshtasticClient(context.Background(), n.Service.Endpoint)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to connect %s (%s): %v\n", n.Service.Endpoint, n.Label, err)
+			fmt.Fprintf(os.Stderr, "Failed %s (%s): %v\n", n.Service.Endpoint, n.Label, err)
 			continue
 		}
-		fmt.Println("test OK: " + c.Label + ", " + c.NodeId)
+		fmt.Printf("test OK: %s, !%x\n", c.Label, c.MyNode.MyNodeNum)
 
 		c.Close()
 	}

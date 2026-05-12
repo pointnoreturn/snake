@@ -7,12 +7,11 @@ import (
 )
 
 type MeshtasticClient struct {
-	Socket     libradio.Socket
-	Endpoint   string
-	NodeId     string
-	Label      string
-	MyNodeInfo *pb.MyNodeInfo
-	NodeDB     []*pb.NodeInfo
+	Socket   libradio.Socket
+	Endpoint string
+	Label    string
+	MyNode   *pb.MyNodeInfo
+	NodeDB   []*pb.NodeInfo
 }
 
 func (c *MeshtasticClient) Close() {

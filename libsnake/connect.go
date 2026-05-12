@@ -198,8 +198,7 @@ func NewMeshtasticClient(ctx context.Context, target string) (*MeshtasticClient,
 	}
 
 	c.Label = GetNodeLabel(nodes[0])
-	c.NodeId = fmt.Sprintf("!%x", myNodeInfo.MyNodeNum)
-	c.MyNodeInfo = myNodeInfo
+	c.MyNode = myNodeInfo
 	c.NodeDB = nodes
 	return c, nil
 }

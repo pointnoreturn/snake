@@ -24,7 +24,7 @@ func main() {
 	}
 
 	var c *libsnake.MeshtasticClient = InitClient(context.TODO(), targetNode)
-	fmt.Println("Connected to: " + c.String())
+	fmt.Printf("Connected to: %s (!%x)\n", c.Label, c.MyNode.MyNodeNum)
 
 	var t *libsnake.Telemeter = libsnake.NewTelemeter(c, w)
 	t.RunLoop(context.TODO())
@@ -46,7 +46,8 @@ func InitClient(ctx context.Context, targetNode string) *libsnake.MeshtasticClie
 		}
 		return c
 	} else { // discover on LAN, using mDNS scan, match by meshtastic node label or hex num
-		all := libsnake.Discover(context.Background(), 10*time.Second)
+		fmt.Println("Discover advertised meshtastic nodes on the network.")
+		all := libsnake.Discover(context.Background(), 4*time.Second)
 		nodes := libsnake.GetMeshtastic(all)
 		node := libsnake.MatchNodeList(targetNode, nodes)
 		if node == nil {
