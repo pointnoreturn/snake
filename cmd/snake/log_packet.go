@@ -60,7 +60,7 @@ func logPacket(p *pb.FromRadio, MyNodeNum uint32) {
 		}
 
 		if d := pkt.GetDecoded(); d != nil {
-			if portName, hasPortName := meshtastic.GetCorePortName(d.Portnum); !hasPortName {
+			if portName, hasPortName := pb.PortNum_name[int32(d.Portnum)]; !hasPortName {
 				infos = append(infos, fmt.Sprintf("📗 port %d sz %d %s", d.Portnum, len(d.Payload), varType))
 			} else {
 				infos = append(infos, fmt.Sprintf("📗 %s sz %d %s", portName, len(d.Payload), varType))

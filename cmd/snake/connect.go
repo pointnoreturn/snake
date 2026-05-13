@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -11,7 +12,12 @@ import (
 	"github.com/pointnoreturn/snake/meshtastic"
 )
 
-func connect(ctx context.Context, targetNode string, configHandlers []meshtastic.PacketF) *meshtastic.Client {
+func connect(ctx context.Context, configHandlers []meshtastic.PacketF) *meshtastic.Client {
+	targetNode := os.Getenv("TARGET_NODE")
+	if len(targetNode) == 0 {
+		panic("TARGET_NODE is empty")
+	}
+
 	ip, isIP := libradios.ParseTCPAddress(targetNode, meshtastic.DefaultNodeTcpPort) // try parse as IP address
 
 	configHandler := func(p *pb.FromRadio) {

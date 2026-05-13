@@ -24,17 +24,12 @@ func main() {
 	)
 	defer stop()
 
-	targetNode := os.Getenv("TARGET_NODE")
-	if len(targetNode) == 0 {
-		panic("TARGET_NODE is empty")
-	}
-
 	// Run NodeDB
 	nodedb := NewNodeDB()
 	go nodedb.Run(ctx)
 
 	// create and connect client
-	var client *meshtastic.Client = connect(ctx, targetNode, []meshtastic.PacketF{
+	var client *meshtastic.Client = connect(ctx, []meshtastic.PacketF{
 		// connection initialization handlers chain
 		nodedb.HandlePacket,
 	})
