@@ -7,6 +7,7 @@ import (
 	"time"
 
 	pb "github.com/pointnoreturn/snake/github.com/meshtastic/go/generated"
+	"github.com/pointnoreturn/snake/libradios"
 )
 
 // default interval for periodic heartbeats
@@ -24,17 +25,26 @@ var (
 type PacketF func(*pb.FromRadio)
 
 type Dispatch struct {
-	stream       *ProtoStream
-	sniffers     []PacketF
-	sniffTimeout time.Duration
+	libradios.Writer[*pb.ToRadio]
+	stream           *ProtoStream
+	sniffers         []PacketF
+	sniffTimeout     time.Duration
+	sendPacketsQueue chan *pb.ToRadio
 }
 
-func NewDispatch(stream *ProtoStream, receivers []PacketF) *Dispatch {
+func NewDispatch(stream *ProtoStream, sendBuffer int, receivers []PacketF) *Dispatch {
 	return &Dispatch{
-		stream:       stream,
-		sniffers:     receivers,
-		sniffTimeout: defaultSniffTimeout,
+		stream:           stream,
+		sniffers:         receivers,
+		sniffTimeout:     defaultSniffTimeout,
+		sendPacketsQueue: make(chan *pb.ToRadio, sendBuffer),
 	}
+}
+
+// queue packets for sending
+func (d *Dispatch) SendPacket(p *pb.ToRadio) error {
+	d.sendPacketsQueue <- p
+	return nil
 }
 
 func (d *Dispatch) Run(ctx context.Context) error {
@@ -52,8 +62,15 @@ func (d *Dispatch) Run(ctx context.Context) error {
 			return ctx.Err()
 		case <-keepAlive.C:
 			heartbeats += 1
-			if err := d.stream.SendHeartbeat(ctx, heartbeats); err != nil {
+			err := d.stream.SendHeartbeat(ctx, heartbeats)
+			if err != nil {
 				fmt.Printf("Heartbeat write failed with Err %T\n", err)
+				return err
+			}
+		case p := <-d.sendPacketsQueue:
+			err := d.stream.WritePacket(ctx, p)
+			if err != nil {
+				fmt.Printf("WritePacket queued in Dispatch failed with Err %T\n", err)
 				return err
 			}
 		default:
