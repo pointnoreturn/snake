@@ -19,7 +19,7 @@ type Transport interface {
 	CanRead() bool
 	CanWrite() bool
 	Write(context.Context, []byte) error
-	Read(context.Context, []byte) error
+	Read(context.Context, []byte) (int, error)
 }
 
 // protocol-agnostic packet IO streaming WritePacket

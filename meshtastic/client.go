@@ -4,8 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	pb "github.com/pointnoreturn/snake/github.com/meshtastic/go/generated"
+	"github.com/pointnoreturn/snake/libradios"
+)
+
+var (
+	ErrAddress = errors.New("Invalid address to connect")
 )
 
 // high level protocol client for Meshtastic
@@ -24,35 +30,83 @@ func (c *Client) String() string {
 	return c.Label
 }
 
-func NewClient(ctx context.Context, connectPort string, configHandler PacketF) (*Client, error) {
-	// TODO: implemented context for stream/operation
+func NewClient(
+	ctx context.Context,
+	target string,
+	configHandler PacketF,
+) (*Client, error) {
 
-	stream := ProtoStream{}
-	err := stream.Connect(ctx, connectPort, DefaultNodeTcpPort)
-	if err != nil {
-		return nil, err
+	var (
+		stream libradios.Transport
+		err    error
+	)
+
+	if _, isIP := libradios.ParseTCPAddress(target, DefaultNodeTcpPort); isIP {
+
+		stream, err = libradios.NewNetStream(
+			ctx,
+			target,
+			DefaultNodeTcpPort,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+	} else if strings.HasPrefix(target, "/") {
+
+		stream, err = libradios.NewSerialStream(
+			ctx,
+			target,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+	} else {
+		return nil, fmt.Errorf("%s: %v", target, ErrAddress)
 	}
 
 	c := &Client{
-		ProtoStream: stream,
-		Port:        connectPort,
+		ProtoStream: ProtoStream{
+			Transport: stream,
+		},
+		Port: target,
 	}
 
-	myNodeInfo, nodes, err := c.initialize(ctx, ConfigId_ConfigOnly, configHandler)
+	myNodeInfo, nodes, err := c.initialize(
+		ctx,
+		ConfigId_ConfigOnly,
+		configHandler,
+	)
+
 	if err != nil {
 		c.Close()
-		return nil, fmt.Errorf("Failed NewClient for %s: %v", connectPort, err)
+		return nil, fmt.Errorf(
+			"Failed NewClient for %s: %v",
+			target,
+			err,
+		)
 	}
 
 	if myNodeInfo == nil || len(nodes) < 1 {
-		return nil, errors.New("Safety check failed")
-	} else if myNodeInfo.MyNodeNum != nodes[0].Num {
-		return nil, fmt.Errorf("MyNodeInfo Num %d (!%x) does not match first NodeInfo entry Num %d (safety check failed)", myNodeInfo.MyNodeNum, myNodeInfo.MyNodeNum, nodes[0].Num)
+		return nil, errors.New("safety check failed")
+	}
+
+	if myNodeInfo.MyNodeNum != nodes[0].Num {
+		return nil, fmt.Errorf(
+			"MyNodeInfo Num %d (!%x) does not match first NodeInfo entry Num %d (safety check failed)",
+			myNodeInfo.MyNodeNum,
+			myNodeInfo.MyNodeNum,
+			nodes[0].Num,
+		)
 	}
 
 	c.Label = GetNodeLabel(nodes[0])
 	c.MyNode = myNodeInfo
 	c.NodeDB = nodes
+
 	return c, nil
 }
 

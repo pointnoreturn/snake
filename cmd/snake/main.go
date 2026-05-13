@@ -28,10 +28,7 @@ func main() {
 	go nodedb.Run(ctx)
 
 	// create and connect client
-	var client *meshtastic.Client = connect(ctx, []meshtastic.PacketF{
-		// connection initialization handlers chain
-		nodedb.HandlePacket,
-	})
+	var client *meshtastic.Client = connect(ctx, nodedb.HandlePacket)
 	defer client.Close()
 	fmt.Printf("Connected to: %s (!%x) at %s\n", client.Label, client.MyNode.MyNodeNum, client.Port)
 

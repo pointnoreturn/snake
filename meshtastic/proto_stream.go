@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
+	"os"
 	"time"
 
 	pb "github.com/pointnoreturn/snake/github.com/meshtastic/go/generated"
@@ -20,7 +22,7 @@ const maxToFromRadioSzie = 512
 
 // read and write Meshtastic Protobuf packets on the underrelying Stream using magic byte codings
 type ProtoStream struct {
-	libradios.BaseStream
+	libradios.Transport
 	libradios.Writer[*pb.ToRadio]
 	libradios.Reader[*pb.FromRadio]
 }
@@ -72,66 +74,120 @@ func (r *ProtoStream) ReadPackets(ctx context.Context, timeout bool) (FromRadioP
 	 */
 	for {
 
-		err := r.Read(readCtx, b)
+		n, err := r.Read(readCtx, b)
+
+		// ------------------------------------------------
+		// timeout handling
+		// ------------------------------------------------
+
+		if errors.Is(err, context.DeadlineExceeded) {
+
+			err = nil
+
+			if len(processedBytes) > 0 {
+				// partial packet in progress
+			}
+
+			return FromRadioPackets, nil
+
+		} else if errors.Is(err, os.ErrDeadlineExceeded) {
+
+			// transport polling timeout
+			continue
+
+		} else if ne, ok := err.(net.Error); ok && ne.Timeout() {
+
+			// transport polling timeout
+			continue
+
+		} else if err == io.EOF ||
+			errors.Is(err, context.Canceled) {
+
+			break
+
+		} else if err != nil {
+
+			return nil, err
+		}
+
+		// ------------------------------------------------
+		// IMPORTANT:
+		// never process stale byte if n == 0
+		// ------------------------------------------------
+
+		if n <= 0 {
+			continue
+		}
+
 		// fmt.Printf("Byte: %q\n", b)
+
 		if bytes.Equal(b, previousByte) {
 			repeatByteCounter++
 		} else {
 			repeatByteCounter = 0
 		}
-		// Only break on repeated bytes if we're not in the middle of reading a valid packet
-		shouldBreakOnRepeat := repeatByteCounter > 20 && (len(processedBytes) < headerLen)
 
-		if errors.Is(err, context.DeadlineExceeded) {
-			err = nil
-			if len(processedBytes) > 0 { // in the middle of reading packet
-				// Hmm we would be able to recover in this case and continue using stream.
-			}
-			return FromRadioPackets, nil
-		} else if err == io.EOF || shouldBreakOnRepeat || errors.Is(err, context.Canceled) {
+		// Only break on repeated bytes if we're not in the middle of reading a valid packet
+		shouldBreakOnRepeat :=
+			repeatByteCounter > 20 &&
+				(len(processedBytes) < headerLen)
+
+		if shouldBreakOnRepeat {
 			break
-		} else if err != nil {
-			return nil, err
 		}
+
 		copy(previousByte, b)
 
-		if len(b) > 0 {
+		pointer := len(processedBytes)
 
-			pointer := len(processedBytes)
+		processedBytes = append(processedBytes, b...)
 
-			processedBytes = append(processedBytes, b...)
+		if pointer == 0 {
 
-			if pointer == 0 {
-				if b[0] != start1 {
-					processedBytes = emptyByte
-				}
-			} else if pointer == 1 {
-				if b[0] != start2 {
-					processedBytes = emptyByte
-				}
-			} else if pointer >= headerLen {
-				packetLength := int(processedBytes[2])<<8 | int(processedBytes[3])
+			if b[0] != start1 {
+				processedBytes = emptyByte
+			}
 
-				if pointer == headerLen {
-					if packetLength > maxToFromRadioSzie {
-						processedBytes = emptyByte
-					}
-				}
+		} else if pointer == 1 {
 
-				if len(processedBytes) != 0 && pointer+1 == packetLength+headerLen {
-					fromRadio := pb.FromRadio{}
-					if err := proto.Unmarshal(processedBytes[headerLen:], &fromRadio); err != nil {
-						return nil, err
-					}
-					FromRadioPackets = append(FromRadioPackets, &fromRadio)
+			if b[0] != start2 {
+				processedBytes = emptyByte
+			}
+
+		} else if pointer >= headerLen {
+
+			packetLength :=
+				int(processedBytes[2])<<8 |
+					int(processedBytes[3])
+
+			if pointer == headerLen {
+
+				if packetLength > maxToFromRadioSzie {
 					processedBytes = emptyByte
 				}
 			}
 
-		} else {
-			break
-		}
+			if len(processedBytes) != 0 &&
+				pointer+1 == packetLength+headerLen {
 
+				fromRadio := pb.FromRadio{}
+
+				if err := proto.Unmarshal(
+					processedBytes[headerLen:],
+					&fromRadio,
+				); err != nil {
+
+					return nil, err
+				}
+
+				FromRadioPackets = append(
+					FromRadioPackets,
+					&fromRadio,
+				)
+
+				processedBytes = emptyByte
+			}
+		}
 	}
 
 	return FromRadioPackets, nil
