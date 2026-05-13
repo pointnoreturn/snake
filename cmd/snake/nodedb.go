@@ -11,7 +11,7 @@ import (
 )
 
 type NodeDB struct {
-	SnifferBase
+	Worker
 }
 
 func NewNodeDB() *NodeDB {

@@ -137,3 +137,12 @@ func HopsAway(pkt *pb.MeshPacket) uint32 {
 	}
 	return pkt.HopStart - pkt.HopLimit
 }
+
+// helper to chain packet handlers in a row
+func ChainPacketHandlers(handlers ...PacketF) PacketF {
+	return func(p *pb.FromRadio) {
+		for _, h := range handlers {
+			h(p)
+		}
+	}
+}

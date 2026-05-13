@@ -28,15 +28,15 @@ var (
 type Dispatch struct {
 	libradios.Writer[*pb.ToRadio]
 	stream           *ProtoStream
-	sniffers         []PacketF
+	HandlePacket     PacketF
 	sniffTimeout     time.Duration
 	sendPacketsQueue chan *pb.ToRadio
 }
 
-func NewDispatch(stream *ProtoStream, sendBuffer int, receivers []PacketF) *Dispatch {
+func NewDispatch(stream *ProtoStream, sendBuffer int, handler PacketF) *Dispatch {
 	return &Dispatch{
 		stream:           stream,
-		sniffers:         receivers,
+		HandlePacket:     handler,
 		sniffTimeout:     defaultSniffTimeout,
 		sendPacketsQueue: make(chan *pb.ToRadio, sendBuffer),
 	}
@@ -91,9 +91,7 @@ func (d *Dispatch) Run(ctx context.Context) error {
 			}
 
 			for _, p := range packets {
-				for _, h := range d.sniffers {
-					h(p)
-				}
+				d.HandlePacket(p)
 				lastPacket = time.Now()
 			}
 		}

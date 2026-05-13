@@ -8,7 +8,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	pb "github.com/pointnoreturn/snake/github.com/meshtastic/go/generated"
 	"github.com/pointnoreturn/snake/meshtastic"
 
 	// This blank import triggers the automatic loading of .env
@@ -44,25 +43,22 @@ func main() {
 	reporter := NewReporter(client.MyNode.MyNodeNum, nodedb)
 	go reporter.Run(ctx)
 
-	// create dispatch with packet handlers configured
-	var dispatch *meshtastic.Dispatch = meshtastic.NewDispatch(&client.ProtoStream, 10, []meshtastic.PacketF{
-		// packet sniffing handlers chain
-		func(p *pb.FromRadio) {
-			logPacket(p, client.MyNode.MyNodeNum)
-		},
+	receivePacket := meshtastic.ChainPacketHandlers(
+		printPacket,
 		nodedb.HandlePacket,
 		reporter.HandlePacket,
-	})
+	)
+
+	// create dispatch with packet handlers configured
+	var dispatch *meshtastic.Dispatch = meshtastic.NewDispatch(&client.ProtoStream, 10, receivePacket)
 
 	// run packet handlers as Dispatch
 	err := dispatch.Run(ctx)
 	if err != nil {
-		if errors.Is(ctx.Err(), context.Canceled) {
-			fmt.Println("Non-critical error: " + err.Error())
-			return
-		}
+		if !errors.Is(ctx.Err(), context.Canceled) {
 
-		fmt.Println("Critical error in Dispatch.Run()")
-		panic(err)
+			fmt.Println("Critical error in Dispatch.Run()")
+			panic(err)
+		}
 	}
 }

@@ -3,6 +3,7 @@ package libradios
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -27,10 +28,12 @@ func (s *BaseStream) Close() {
 	if s.isTCP {
 		if s.netPort != nil {
 			s.netPort.Close()
+			fmt.Println("[BaseStream] Net port closed")
 		}
 	} else {
 		if s.serialPort != nil {
 			s.serialPort.Close()
+			fmt.Println("[BaseStream] Serial port closed")
 		}
 	}
 }

@@ -8,7 +8,7 @@ import (
 	"github.com/pointnoreturn/snake/meshtastic"
 )
 
-func logPacket(p *pb.FromRadio, MyNodeNum uint32) {
+func printPacket(p *pb.FromRadio) {
 	switch v := p.PayloadVariant.(type) {
 
 	case *pb.FromRadio_QueueStatus: // Ignore connection status metadata (heartbeat related)
@@ -36,10 +36,6 @@ func logPacket(p *pb.FromRadio, MyNodeNum uint32) {
 		}
 
 		hopsAway := meshtastic.HopsAway(pkt)
-		if pkt.From == MyNodeNum {
-			hopsAway = 0
-			rxInfo = ""
-		}
 
 		infos := []string{
 			fmt.Sprintf("%s#%d chan %d from !%x to !%x%s", rxInfo, pkt.Id, pkt.Channel, pkt.From, pkt.To, relayInfo),

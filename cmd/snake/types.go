@@ -6,7 +6,7 @@ import (
 	pb "github.com/pointnoreturn/snake/github.com/meshtastic/go/generated"
 )
 
-type SnifferBase interface {
+type Worker interface {
 	HandlePacket(*pb.FromRadio)
 	Run(context.Context)
 }

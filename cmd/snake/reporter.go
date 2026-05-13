@@ -8,7 +8,7 @@ import (
 )
 
 type Reporter struct {
-	SnifferBase
+	Worker
 	selfNodeNum uint32
 	nodedb      *NodeDB
 	weather     libweather.WeatherProvider
