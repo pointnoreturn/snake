@@ -37,8 +37,6 @@ func NewNetStream(
 		return nil, errors.New(s)
 	}
 
-	fmt.Println("[BaseStream] Connecting as TCP")
-
 	d := net.Dialer{}
 
 	conn, err := d.DialContext(

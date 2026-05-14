@@ -75,6 +75,8 @@ func NewClient(
 		Port: target,
 	}
 
+	fmt.Println("running Client.intiialize()")
+
 	myNodeInfo, nodes, err := c.initialize(
 		ctx,
 		ConfigId_ConfigOnly,
@@ -84,7 +86,7 @@ func NewClient(
 	if err != nil {
 		c.Close()
 		return nil, fmt.Errorf(
-			"Failed NewClient for %s: %v",
+			"Failed initialize for %s: %v",
 			target,
 			err,
 		)
@@ -132,18 +134,24 @@ func (c *Client) initialize(ctx context.Context, configId uint32, configHandler 
 }
 
 func (c *Client) initializeBase(ctx context.Context, configId uint32, verifyCompleteId bool) (*pb.MyNodeInfo, []*pb.FromRadio, error) {
+	fmt.Println("[initializeBase] call WantConfig")
 
 	responses, err := c.ProtoStream.WantConfig(ctx, configId)
 	if err != nil {
 		return nil, responses, err
 	}
 
-	//fmt.Printf("DEBUG: [initializeBase] WantConfig(%d) at %s got %d responses\n", configId, c.Port, len(responses))
+	fmt.Println("[initializeBase] WantConfig() returned no error")
+
+	fmt.Printf("DEBUG: [initializeBase] WantConfig(%d) at %s got %d responses\n", configId, c.Port, len(responses))
 
 	var myNodeInfo *pb.MyNodeInfo
-	for _, p := range responses {
-		if info := p.GetMyInfo(); info != nil && myNodeInfo == nil {
+	for i, p := range responses {
+		fmt.Printf("Response %d %T\n", i, p.PayloadVariant)
+		if info := p.GetMyInfo(); info != nil {
+			fmt.Println("assigned myNodeInfo")
 			myNodeInfo = info
+			fmt.Printf("Data: %v\n", myNodeInfo)
 		}
 	}
 

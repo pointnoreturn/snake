@@ -1,12 +1,9 @@
 package meshtastic
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
-	"net"
-	"os"
 	"time"
 
 	pb "github.com/pointnoreturn/snake/github.com/meshtastic/go/generated"
@@ -45,151 +42,107 @@ func (r *ProtoStream) WritePacket(
 		byte(packageLength) & 0xff,
 	}
 
-	radioPacket := append(header, protobufPacket...)
+	data := append(header, protobufPacket...)
 
-	return r.Write(ctx, radioPacket)
+	//fmt.Printf("[WritePacket] call Write() with %d bytes transport %T\n", len(data), r.Transport)
+
+	return r.Write(ctx, data)
 }
 
-// ReadResponse reads any responses in the serial port, convert them to a FromRadio protobuf and return
-func (r *ProtoStream) ReadPackets(ctx context.Context, timeout bool) (FromRadioPackets []*pb.FromRadio, err error) {
-	readCtx, cancel := context.WithTimeout(
-		ctx,
-		5*time.Second,
-	)
+func (r *ProtoStream) ReadPackets(ctx context.Context, timeout bool) ([]*pb.FromRadio, error) {
+
+	readCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	b := make([]byte, 1)
 
-	emptyByte := make([]byte, 0)
-	processedBytes := make([]byte, 0)
-	repeatByteCounter := 0
-	previousByte := make([]byte, 1)
-	/************************************************************************************************
-	* Process the returned data byte by byte until we have a valid command
-	* Each command will come back with [START1, START2, PROTOBUF_PACKET]
-	* where the protobuf packet is sent in binary. After reading START1 and START2
-	* we use the next bytes to find the length of the packet.
-	* After finding the length the looop continues to gather bytes until the length of the gathered
-	* bytes is equal to the packet length plus the header
-	 */
+	var (
+		processed []byte
+		packets   []*pb.FromRadio
+	)
+
 	for {
 
 		n, err := r.Read(readCtx, b)
 
-		// ------------------------------------------------
-		// timeout handling
-		// ------------------------------------------------
+		// -------------------------
+		// ONLY REAL FATAL ERRORS
+		// -------------------------
 
-		if errors.Is(err, context.DeadlineExceeded) {
+		if err != nil {
 
-			err = nil
-
-			if len(processedBytes) > 0 {
-				// partial packet in progress
+			if errors.Is(err, context.Canceled) {
+				return packets, err
 			}
 
-			return FromRadioPackets, nil
+			if errors.Is(err, context.DeadlineExceeded) {
+				return packets, nil
+			}
 
-		} else if errors.Is(err, os.ErrDeadlineExceeded) {
+			if err == io.EOF {
+				return packets, nil
+			}
 
-			// transport polling timeout
+			// IMPORTANT: ignore transport timeouts
 			continue
-
-		} else if ne, ok := err.(net.Error); ok && ne.Timeout() {
-
-			// transport polling timeout
-			continue
-
-		} else if err == io.EOF ||
-			errors.Is(err, context.Canceled) {
-
-			break
-
-		} else if err != nil {
-
-			return nil, err
 		}
-
-		// ------------------------------------------------
-		// IMPORTANT:
-		// never process stale byte if n == 0
-		// ------------------------------------------------
 
 		if n <= 0 {
 			continue
 		}
 
-		// fmt.Printf("Byte: %q\n", b)
+		c := b[0]
 
-		if bytes.Equal(b, previousByte) {
-			repeatByteCounter++
-		} else {
-			repeatByteCounter = 0
+		processed = append(processed, c)
+
+		// -------------------------
+		// resync header
+		// -------------------------
+
+		if len(processed) == 1 && c != start1 {
+			processed = processed[:0]
+			continue
 		}
 
-		// Only break on repeated bytes if we're not in the middle of reading a valid packet
-		shouldBreakOnRepeat :=
-			repeatByteCounter > 20 &&
-				(len(processedBytes) < headerLen)
-
-		if shouldBreakOnRepeat {
-			break
+		if len(processed) == 2 && c != start2 {
+			processed = processed[:0]
+			continue
 		}
 
-		copy(previousByte, b)
+		// -------------------------
+		// need header first
+		// -------------------------
 
-		pointer := len(processedBytes)
+		if len(processed) < headerLen {
+			continue
+		}
 
-		processedBytes = append(processedBytes, b...)
+		length := int(processed[2])<<8 | int(processed[3])
 
-		if pointer == 0 {
+		if length > maxToFromRadioSzie {
+			processed = processed[:0]
+			continue
+		}
 
-			if b[0] != start1 {
-				processedBytes = emptyByte
+		// -------------------------
+		// full packet ready
+		// -------------------------
+
+		if len(processed) == headerLen+length {
+
+			var fr pb.FromRadio
+
+			if err := proto.Unmarshal(
+				processed[headerLen:],
+				&fr,
+			); err != nil {
+				return nil, err
 			}
 
-		} else if pointer == 1 {
-
-			if b[0] != start2 {
-				processedBytes = emptyByte
-			}
-
-		} else if pointer >= headerLen {
-
-			packetLength :=
-				int(processedBytes[2])<<8 |
-					int(processedBytes[3])
-
-			if pointer == headerLen {
-
-				if packetLength > maxToFromRadioSzie {
-					processedBytes = emptyByte
-				}
-			}
-
-			if len(processedBytes) != 0 &&
-				pointer+1 == packetLength+headerLen {
-
-				fromRadio := pb.FromRadio{}
-
-				if err := proto.Unmarshal(
-					processedBytes[headerLen:],
-					&fromRadio,
-				); err != nil {
-
-					return nil, err
-				}
-
-				FromRadioPackets = append(
-					FromRadioPackets,
-					&fromRadio,
-				)
-
-				processedBytes = emptyByte
-			}
+			packets = append(packets, &fr)
+			processed = processed[:0]
 		}
 	}
 
-	return FromRadioPackets, nil
-
+	return packets, nil
 }

@@ -39,7 +39,7 @@ func main() {
 
 	for _, n := range nodes {
 
-		fmt.Printf("- Node: [%s] id=!%x\tnum=%d\tshort=%s\t%s\t%s:%d\n", n.Label, n.NodeNum, n.NodeNum, n.ShortName, n.Service.Endpoint, n.Service.Entry.HostName, n.Service.Entry.Port)
+		fmt.Printf("- Node: [%s]\tid=!%x\tnum=%d\tshort=%s\t%s\t%s:%d\n", n.Label, n.NodeNum, n.NodeNum, n.ShortName, n.Service.Endpoint, n.Service.Entry.HostName, n.Service.Entry.Port)
 	}
 
 	fmt.Println("Test every node connect-and-disconnect...")

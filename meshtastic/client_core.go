@@ -3,6 +3,7 @@ package meshtastic
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	pb "github.com/pointnoreturn/snake/github.com/meshtastic/go/generated"
 )
@@ -18,17 +19,22 @@ const ConfigId_ConfigOnly = 69420
 // read them all as radioResponses
 // TODO: timeouts and receive full node db?? Use MyNodeInfo.NodedbCount to ensure full nodedb is received
 func (r *ProtoStream) WantConfig(ctx context.Context, id uint32) (radioResponses []*pb.FromRadio, err error) {
-	nodeInfo := pb.ToRadio{PayloadVariant: &pb.ToRadio_WantConfigId{WantConfigId: id}} // only want self node info
+	toRadio := pb.ToRadio{PayloadVariant: &pb.ToRadio_WantConfigId{WantConfigId: id}} // only want self node info
 
-	err = r.WritePacket(ctx, &nodeInfo)
+	fmt.Println("[WantConfig] call WritePacket")
+	err = r.WritePacket(ctx, &toRadio)
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Println("[WantConfig] call ReadPackets(timeout: true)")
 
 	radioResponses, err = r.ReadPackets(ctx, true)
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Printf("[WantConfig] no error, %d responses read.\n", len(radioResponses))
 
 	if len(radioResponses) == 0 {
 		return nil, errors.New("failed to get radio info")

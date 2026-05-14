@@ -56,7 +56,7 @@ func (d *Dispatch) Run(ctx context.Context) error {
 	keepAlive := time.NewTicker(defaultHeartbeatInterval)
 	defer keepAlive.Stop()
 
-	fmt.Println("Telemeter loop is running")
+	fmt.Println("[Dispatch] Running")
 
 	lastPacket := time.Now()
 

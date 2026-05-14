@@ -3,7 +3,6 @@ package libradios
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"os"
@@ -22,7 +21,6 @@ func (s *SerialStream) CanWrite() bool { return true }
 func (s *SerialStream) Close() {
 	if s.serialPort != nil {
 		_ = s.serialPort.Close()
-		fmt.Println("[SerialStream] Serial port closed")
 	}
 }
 
@@ -39,7 +37,7 @@ func NewSerialStream(ctx context.Context, addr string) (*SerialStream, error) {
 		DataBits:              8,
 		StopBits:              1,
 		MinimumReadSize:       0,
-		InterCharacterTimeout: 100,
+		InterCharacterTimeout: 800,
 		ParityMode:            serial.PARITY_NONE,
 	}
 
@@ -139,7 +137,7 @@ func (s *SerialStream) Read(ctx context.Context, p []byte) (int, error) {
 		SetReadDeadline(time.Time) error
 	}); ok {
 		_ = dl.SetReadDeadline(
-			time.Now().Add(5200 * time.Millisecond),
+			time.Now().Add(8200 * time.Millisecond),
 		)
 	}
 
