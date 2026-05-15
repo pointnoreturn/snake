@@ -70,14 +70,14 @@ func WantConfigSequence(ctx context.Context, stream *ProtoStream, configId uint3
 		return nil, responses, err
 	}
 
-	stream.Log.Debug(fmt.Sprintf("[WantConfigSequence] WantConfig(%d) got %d responses\n", configId, len(responses)))
+	stream.Log.Debug(fmt.Sprintf("[WantConfigSequence] WantConfig(%d) got %d responses", configId, len(responses)))
 
 	var myNodeInfo *pb.MyNodeInfo
 	for i, p := range responses {
-		stream.Log.Debug(fmt.Sprintf("[WantConfigSequence] Response %d %T\n", i, p.PayloadVariant))
+		stream.Log.Debug(fmt.Sprintf("[WantConfigSequence] Response %d %T", i, p.PayloadVariant))
 		if info := p.GetMyInfo(); info != nil {
 			myNodeInfo = info
-			stream.Log.Debug(fmt.Sprintf("[WantConfigSequence] myNodeInfo Data: %+v\n", myNodeInfo))
+			stream.Log.Debug(fmt.Sprintf("[WantConfigSequence] myNodeInfo Data: %+v", myNodeInfo))
 		}
 	}
 

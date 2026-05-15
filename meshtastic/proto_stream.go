@@ -38,7 +38,7 @@ func (stream *ProtoStream) WritePacket(
 	}
 
 	packageLength := len(protobufPacket)
-	stream.Log.Debug(fmt.Sprintf("[WritePacket] %d bytes %T\n", packageLength, stream.Transport))
+	stream.Log.Debug(fmt.Sprintf("[WritePacket] %d bytes %T", packageLength, stream.Transport))
 
 	header := []byte{
 		start1,
@@ -53,7 +53,7 @@ func (stream *ProtoStream) WritePacket(
 }
 
 func (stream *ProtoStream) ReadPackets(ctx context.Context, timeout bool) ([]*pb.FromRadio, error) {
-	stream.Log.Debug(fmt.Sprintf("[ReadPackets] timeout %v on %T\n", timeout, stream.Transport))
+	stream.Log.Debug(fmt.Sprintf("[ReadPackets] timeout %v on %T", timeout, stream.Transport))
 
 	readCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()

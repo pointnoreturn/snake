@@ -5,13 +5,16 @@ import (
 	"os"
 )
 
-var log *slog.Logger
+var (
+	log         *slog.Logger
+	envVMURL    = os.Getenv("VICTORIA_METRICS")
+	envLogLevel = os.Getenv("LOG_LEVEL")
+)
 
 func init() {
-
 	level := slog.LevelInfo
 
-	if os.Getenv("LOG_LEVEL") == "debug" {
+	if envLogLevel == "debug" {
 		level = slog.LevelDebug
 	}
 
@@ -29,4 +32,8 @@ func init() {
 			},
 		}),
 	)
+
+	if envVMURL == "" {
+		panic("No VICTORIA_METRICS env set.")
+	}
 }

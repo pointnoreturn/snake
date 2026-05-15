@@ -46,6 +46,9 @@ func main() {
 		os.Exit(3)
 	}
 
+	db.Init(ctx)
+	reporter.Init(ctx)
+
 	var err error
 
 	stream, myNodeInfo, nodeInfo, err = meshtastic.FindAndConnect(ctx, log, targetNode, time.Second*10, meshtastic.ConfigId_ConfigOnly, db.HandlePacket)

@@ -1,16 +1,10 @@
 
-networks:
-  telemetry_net:
-    driver: bridge
-
 services:
 
   victoriametrics:
     image: victoriametrics/victoria-metrics
     container_name: victoriametrics
     restart: unless-stopped
-    networks:
-      - telemetry_net
     ports:
       - "127.0.0.1:8428:8428"
 
@@ -18,8 +12,6 @@ services:
     image: grafana/grafana
     container_name: grafana
     restart: unless-stopped
-    networks:
-      - telemetry_net
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     ports:
@@ -31,5 +23,7 @@ services:
       context: .
       dockerfile: Dockerfile
     env_file: .env
+    environment:
+      VICTORIA_METRICS: http://127.0.0.1:8428
     restart: unless-stopped
     network_mode: host

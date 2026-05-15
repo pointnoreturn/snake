@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM docker.io/golang:1.25.7-alpine AS builder
+FROM docker.io/golang:1.26.2-alpine AS builder
 
 WORKDIR /app
 
@@ -10,6 +10,8 @@ ENV CGO_ENABLED=0 \
 COPY certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
 COPY go.mod go.sum ./
+ENV GOPROXY=http://host.docker.internal:3000
+ENV GOSUMDB=off
 RUN go mod download
 
 COPY . .

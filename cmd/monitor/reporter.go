@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"strconv"
 
 	pb "github.com/pointnoreturn/monitor/github.com/meshtastic/go/generated"
 	"github.com/pointnoreturn/monitor/libweather"
@@ -17,6 +18,10 @@ func (reporter *Reporter) Init(ctx context.Context) {
 }
 
 func (reporter *Reporter) Run(ctx context.Context) {
+	WriteMetric(
+		"uptime", 0,
+		"self", strconv.Itoa(int(myNodeInfo.MyNodeNum)),
+	)
 }
 
 func (reporter *Reporter) HandlePacket(p *pb.FromRadio) {
