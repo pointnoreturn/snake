@@ -18,12 +18,13 @@ services:
       - 0.0.0.0:3000:3000
 
   monitor:
-    image: ghcr.io/pointnoreturn/monitor:1.0
+    image: ghcr.io/pointnoreturn/monitor:1.2
     build:
       context: .
       dockerfile: Dockerfile
     env_file: .env
-    environment:
-      VICTORIA_METRICS: http://127.0.0.1:8428
     restart: unless-stopped
+    environment:
+      LOG_LEVEL: debug
+      VICTORIA_METRICS: http://127.0.0.1:8428
     network_mode: host

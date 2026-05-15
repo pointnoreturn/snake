@@ -15,14 +15,41 @@ func Init(url string, log *slog.Logger) {
 	logger = log
 }
 
-func Increase(amount float64, name string, labels ...string) bool {
-	c, err := GetCounter(false, name, labels...)
+func AddOne(name string, labels ...string) bool {
+	c, err := MakeSeries(name, labels...)
 	if err != nil {
-		logger.Error(fmt.Sprintf("[MetricIncrease] Cannot Get %s with %d labels to increase by %f: %v", name, len(labels)/2, amount, err))
+		logger.Error(fmt.Sprintf("[MetricIncrease] Cannot GetCounter %s (%d labels) to increase by 1: %v", name, len(labels)/2, err))
+		return false
+	}
+
+	c.AddOne()
+	c.Commit()
+
+	return true
+}
+
+func Add(amount float64, name string, labels ...string) bool {
+	c, err := MakeSeries(name, labels...)
+	if err != nil {
+		logger.Error(fmt.Sprintf("[MetricIncrease] Cannot GetCounter %s (%d labels) to increase by %f: %v", name, len(labels)/2, amount, err))
 		return false
 	}
 
 	c.Add(amount)
+	c.Commit()
+
+	return true
+}
+
+func Set(x float64, name string, labels ...string) bool {
+	c, err := MakeSeries(name, labels...)
+	if err != nil {
+		logger.Error(fmt.Sprintf("[MetricIncrease] Cannot GetCounter %s (%d labels) to increase by %f: %v", name, len(labels)/2, x, err))
+		return false
+	}
+
+	c.Set(x)
+	c.Commit()
 
 	return true
 }

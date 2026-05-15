@@ -35,7 +35,7 @@ func main() {
 	defer stop()
 
 	handlers := meshtastic.ChainPacketHandlers(
-		printPacket,
+		//printPacket,
 		db.HandlePacket,
 		reporter.HandlePacket,
 	)

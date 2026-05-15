@@ -8,10 +8,23 @@ import (
 )
 
 var (
-	appLog      *slog.Logger
-	libLog      *slog.Logger
-	envVMURL    = os.Getenv("VICTORIA_METRICS")
-	envLogLevel = os.Getenv("LOG_LEVEL")
+	libLog *slog.Logger = slog.New(
+		slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			Level: slog.LevelWarn,
+			ReplaceAttr: func(
+				groups []string,
+				a slog.Attr,
+			) slog.Attr {
+				if a.Key == slog.TimeKey {
+					return slog.Attr{}
+				}
+				return a
+			},
+		}),
+	)
+	appLog             *slog.Logger
+	victoriaMetricsUrl = os.Getenv("VICTORIA_METRICS")
+	envLogLevel        = os.Getenv("LOG_LEVEL")
 )
 
 func init() {
@@ -38,15 +51,8 @@ func init() {
 		}),
 	)
 
-	libLog = slog.New(
-		slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-			Level:       slog.LevelWarn,
-			ReplaceAttr: r,
-		}),
-	)
-
-	if envVMURL == "" {
+	if victoriaMetricsUrl == "" {
 		panic("No VICTORIA_METRICS env set.")
 	}
-	libmetric.Init(envVMURL, appLog)
+	libmetric.Init(victoriaMetricsUrl, libLog)
 }

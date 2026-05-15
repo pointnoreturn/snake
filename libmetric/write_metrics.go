@@ -7,13 +7,13 @@ import (
 	"strings"
 )
 
-func WriteMetrics(counters []*Counter) error {
+func WriteMetrics(counters []*Series) error {
 
 	var sb strings.Builder
 
 	for i, c := range counters {
 
-		val := c.value.Load()
+		val := c.data.Load()
 
 		sb.WriteString(c.name)
 

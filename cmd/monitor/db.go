@@ -11,7 +11,7 @@ import (
 )
 
 type DB struct {
-	Worker
+	// relayCandidate map[uint32]  TODO: relayByte := uint8(pkt.RelayNode)
 }
 
 func (db *DB) Init(ctx context.Context) {

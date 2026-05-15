@@ -10,8 +10,6 @@ ENV CGO_ENABLED=0 \
 COPY certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
 COPY go.mod go.sum ./
-ENV GOPROXY=http://host.docker.internal:3000
-ENV GOSUMDB=off
 RUN go mod download
 
 COPY . .
