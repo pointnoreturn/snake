@@ -3,7 +3,6 @@ package libradios
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"os"
 	"time"
@@ -27,16 +26,8 @@ func (s *NetStream) Close() {
 
 func NewNetStream(
 	ctx context.Context,
-	addr string,
-	defaultPort string,
+	tcpAddr string,
 ) (*NetStream, error) {
-
-	tcpAddr, ok := ParseTCPAddress(addr, defaultPort)
-	if !ok {
-		s := fmt.Sprintf("Failed to parse TCP address for NetStream connect: '%s'", addr)
-		return nil, errors.New(s)
-	}
-
 	d := net.Dialer{}
 
 	conn, err := d.DialContext(

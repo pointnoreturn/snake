@@ -9,10 +9,20 @@ import (
 	"syscall"
 	"time"
 
+	pb "github.com/pointnoreturn/monitor/github.com/meshtastic/go/generated"
 	"github.com/pointnoreturn/monitor/meshtastic"
 
 	// This blank import triggers the automatic loading of .env
 	_ "github.com/joho/godotenv/autoload"
+)
+
+var (
+	stream     *meshtastic.ProtoStream
+	dispatch   *meshtastic.Dispatch
+	myNodeInfo *pb.MyNodeInfo
+	nodeInfo   *pb.NodeInfo
+	db         DB
+	reporter   Reporter
 )
 
 func main() {
@@ -24,39 +34,39 @@ func main() {
 	)
 	defer stop()
 
-	// Run NodeDB
-	nodedb := NewNodeDB()
-	go nodedb.Run(ctx)
+	db.Init(ctx)
+	reporter.Init(ctx)
+
+	handlers := meshtastic.ChainPacketHandlers(
+		printPacket,
+		db.HandlePacket,
+		reporter.HandlePacket,
+	)
 
 	targetNode := os.Getenv("TARGET_NODE")
 	if len(targetNode) == 0 {
 		panic("TARGET_NODE is empty")
 	}
 
-	// create and connect client
-	stream, myNodeInfo, nodeInfo, err := meshtastic.AutoConnect(ctx, targetNode, time.Second*5, meshtastic.ConfigId_ConfigOnly, nodedb.HandlePacket)
+	var err error
+
+	stream, myNodeInfo, nodeInfo, err = meshtastic.FindAndConnect(ctx, targetNode, time.Second*10, meshtastic.ConfigId_ConfigOnly, db.HandlePacket)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			panic("Cannot find target node to connect: " + targetNode)
+		}
 		panic(err)
 	}
 	defer stream.Close()
 
 	label := meshtastic.GetNodeLabel(nodeInfo.User.ShortName, nodeInfo.Num)
-	fmt.Printf("Connected to node: %s (!%x), pio %s\n", label, myNodeInfo.MyNodeNum, myNodeInfo.PioEnv)
+	fmt.Printf("Connected node: %s (!%x), pio %s\n", label, myNodeInfo.MyNodeNum, myNodeInfo.PioEnv)
 
-	// Run reporter
-	reporter := NewReporter(myNodeInfo.MyNodeNum, nodedb)
+	dispatch = meshtastic.NewDispatch(stream, 100, handlers)
+
+	go db.Run(ctx)
 	go reporter.Run(ctx)
 
-	handlers := meshtastic.ChainPacketHandlers(
-		printPacket,
-		nodedb.HandlePacket,
-		reporter.HandlePacket,
-	)
-
-	// create dispatch with packet handlers configured
-	var dispatch *meshtastic.Dispatch = meshtastic.NewDispatch(stream, 100, handlers)
-
-	// run packet handlers as Dispatch
 	err = dispatch.Run(ctx)
 	if err != nil {
 		if !errors.Is(ctx.Err(), context.Canceled) {

@@ -8,12 +8,12 @@ import (
 type Writer libradios.Writer[*pb.ToRadio]
 type Reader libradios.Reader[*pb.FromRadio]
 
-// reference of a Bonjour discovered Meshtastic service
-type ResolvedNode struct {
-	Service   libradios.ResolvedService // bonjour header
-	NodeNum   uint32                    // node number
-	ShortName string                    // short name, if any
-	Label     string                    // replicate phone app label of a network node SHRT_nnnn or nnnn_nnnn
+// reference of a Bonjour discovered Meshtastic node
+type BroadcastNode struct {
+	Service   *libradios.Broadcast // bonjour header
+	NodeNum   uint32               // node number
+	ShortName string               // short name, if any
+	Label     string               // replicate phone app label of a network node SHRT_nnnn or nnnn_nnnn
 }
 
 type PacketF func(*pb.FromRadio)

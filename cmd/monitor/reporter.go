@@ -9,22 +9,15 @@ import (
 
 type Reporter struct {
 	Worker
-	selfNodeNum uint32
-	nodedb      *NodeDB
-	weather     libweather.WeatherProvider
+	weather libweather.WeatherProvider
 }
 
-func NewReporter(selfNodeNum uint32, nodedb *NodeDB) *Reporter {
-	return &Reporter{
-		selfNodeNum: selfNodeNum,
-		nodedb:      nodedb,
-		weather:     makeWeatherProvider(),
-	}
-}
-
-func (reporter *Reporter) HandlePacket(p *pb.FromRadio) {
+func (reporter *Reporter) Init(ctx context.Context) {
+	reporter.weather = makeWeatherProvider()
 }
 
 func (reporter *Reporter) Run(ctx context.Context) {
+}
 
+func (reporter *Reporter) HandlePacket(p *pb.FromRadio) {
 }

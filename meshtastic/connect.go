@@ -11,25 +11,24 @@ import (
 	"github.com/pointnoreturn/monitor/libradios"
 )
 
+var (
+	ErrBrowseNotFound = errors.New("Node not found in browse mode.")
+)
+
 func ConnectTCP(
 	ctx context.Context,
-	address string,
-	defaultPort int,
+	tcpAddr string,
 	wantConfigId uint32,
 	configHandler PacketF,
 ) (*ProtoStream, *pb.MyNodeInfo, *pb.NodeInfo, error) {
 
-	stream, err := libradios.NewNetStream(
-		ctx,
-		address,
-		fmt.Sprintf("%d", defaultPort),
-	)
+	stream, err := libradios.NewNetStream(ctx, tcpAddr)
 
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	return createCompletedClient(ctx, address, stream, wantConfigId, configHandler)
+	return createCompletedClient(ctx, tcpAddr, stream, wantConfigId, configHandler)
 }
 
 func ConnectSerial(
@@ -109,7 +108,13 @@ func createCompletedClient(
 	return stream, myNodeInfo, nodeInfo, nil
 }
 
-func AutoConnect(ctx context.Context, targetNode string, timeout time.Duration, wantConfigId uint32, handleConfig PacketF) (*ProtoStream, *pb.MyNodeInfo, *pb.NodeInfo, error) {
+// creates completed configured connection to a node using TARGET_NODE specification:
+// either "/dev/ttyUSB0" like system path
+// or raw IP, IP:port
+// or node label like {short_name}_{last_bytes_hex} when a resolved node sends Bonjour broadcasts (announce) on the local network.
+// wantConfigId: See PhoneAPI
+// handleConfig: Packet handler before configuration is completed.
+func FindAndConnect(ctx context.Context, targetNode string, timeout time.Duration, wantConfigId uint32, handleConfig PacketF) (*ProtoStream, *pb.MyNodeInfo, *pb.NodeInfo, error) {
 	// serial device is a path
 	if strings.Index(targetNode, "/") == 0 {
 		stream, myNodeInfo, nodeInfo, err := ConnectSerial(ctx, targetNode, wantConfigId, handleConfig)
@@ -121,26 +126,56 @@ func AutoConnect(ctx context.Context, targetNode string, timeout time.Duration, 
 	}
 
 	// non-path target
-	// assume NODE number, node Label (TODO)
+	// check if it is IP, IP:port, [IPv6]:port or IPv6
+	if ipEndpoint, isIpEndpoint := libradios.ParseTCPAddress(targetNode, fmt.Sprintf("%d", DefaultPort)); isIpEndpoint {
+		stream, myNodeInfo, nodeInfo, err := ConnectTCP(ctx, ipEndpoint, wantConfigId, handleConfig)
+		if err != nil {
+			err := fmt.Errorf("Failed to connect tcp using discovery '%s': %w", targetNode, err)
+			return nil, nil, nil, err
+		}
+
+		return stream, myNodeInfo, nodeInfo, nil
+	}
+
+	// Non-IP format string, ASSUME: node broadcast on the local network (NOT hostname)
+	// assume NODE number, node Label
 	// discover on LAN using mDNS scan, match by meshtastic node label or hex num
-
 	fmt.Println("Discover advertised meshtastic nodes on the network")
-	all := libradios.Discover(context.Background(), 5*time.Second)
 
-	fmt.Printf("Find target node '%s' among %d services\n", targetNode, len(all))
-	nodes := ListNodes(all)
-	node := FindNode(targetNode, nodes)
-	if node == nil {
-		err := fmt.Errorf("Node not found using mDNS scan and matching: '%s' (retry/longer scan may fix resolution)", targetNode)
-		return nil, nil, nil, err
+	timeoutContext, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	services := make(chan *libradios.Broadcast)
+	nodes := make(chan *BroadcastNode)
+
+	go libradios.BrowseBroadcasts(timeoutContext, services)
+	go BrowseNodes(timeoutContext, services, nodes)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, nil, nil, ctx.Err()
+		case <-timeoutContext.Done():
+			return nil, nil, nil, timeoutContext.Err()
+		case n := <-nodes:
+			if n == nil || n.Service == nil || n.Service.Entry == nil {
+				return nil, nil, nil, ErrBrowseNotFound
+			}
+
+			fmt.Printf("Node: %+v\n", n)
+			if !MatchNode(targetNode, n) {
+				continue
+			}
+
+			fmt.Printf("Connect to node %s\n", n.Service.Endpoint)
+			stream, myNodeInfo, nodeInfo, err := ConnectTCP(ctx, n.Service.Endpoint, wantConfigId, handleConfig)
+			if err != nil {
+				err := fmt.Errorf("Failed to connect tcp using discovery '%s': %w", targetNode, err)
+				return nil, nil, nil, err
+			}
+
+			return stream, myNodeInfo, nodeInfo, nil
+
+		}
 	}
-
-	fmt.Printf("Connect to node %s\n", node.Service.Endpoint)
-	stream, myNodeInfo, nodeInfo, err := ConnectTCP(ctx, node.Service.Endpoint, DefaultPort, wantConfigId, handleConfig)
-	if err != nil {
-		err := fmt.Errorf("Failed to connect tcp using discovery '%s': %w", targetNode, err)
-		return nil, nil, nil, err
-	}
-
-	return stream, myNodeInfo, nodeInfo, nil
 }

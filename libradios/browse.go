@@ -5,33 +5,29 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/grandcat/zeroconf"
 	"github.com/joho/godotenv"
 )
 
-func Discover(ctx context.Context, timeout time.Duration) []ResolvedService {
-	resolver, _ := zeroconf.NewResolver(nil)
+func BrowseBroadcasts(ctx context.Context, outService chan *Broadcast) error {
+	defer close(outService)
+
 	entries := make(chan *zeroconf.ServiceEntry)
 
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	services := []ResolvedService{}
-
-	go func() {
-		_ = resolver.Browse(ctx, "_meshtastic._tcp", "local.", entries)
-	}()
-
-	timer := time.NewTimer(timeout)
+	resolver, _ := zeroconf.NewResolver(nil)
+	go resolver.Browse(ctx, "_meshtastic._tcp", "local.", entries)
 
 	for {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case e := <-entries:
 			if e == nil {
 				continue
 			}
+
+			fmt.Printf("Entry: %+v\n", e)
 
 			endpoint := ""
 			if len(e.AddrIPv4) > 0 {
@@ -47,16 +43,11 @@ func Discover(ctx context.Context, timeout time.Duration) []ResolvedService {
 				args = make(map[string]string)
 			}
 
-			services = append(services, ResolvedService{
+			outService <- &Broadcast{
 				Endpoint: endpoint,
 				Entry:    e,
 				Args:     args,
-			})
-
-		case <-ctx.Done():
-			return services
-		case <-timer.C:
-			return services
+			}
 		}
 	}
 }

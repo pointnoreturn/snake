@@ -7,7 +7,7 @@ import (
 )
 
 // Descriptor for a Bonjour service resolved on the network
-type ResolvedService struct {
+type Broadcast struct {
 	Endpoint string
 	Entry    *zeroconf.ServiceEntry
 	Args     map[string]string

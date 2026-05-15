@@ -10,18 +10,22 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-type NodeDB struct {
+type DB struct {
 	Worker
 }
 
-func NewNodeDB() *NodeDB {
-	return &NodeDB{}
+func (db *DB) Init(ctx context.Context) {
+
 }
 
-func (nodedb *NodeDB) HandlePacket(p *pb.FromRadio) {
+func (db *DB) Run(ctx context.Context) {
+
+}
+
+func (db *DB) HandlePacket(p *pb.FromRadio) {
 	switch v := p.PayloadVariant.(type) {
 	case *pb.FromRadio_NodeInfo:
-		nodedb.update(v.NodeInfo)
+		db.update(v.NodeInfo)
 	case *pb.FromRadio_Packet:
 		pkt := v.Packet
 
@@ -35,25 +39,22 @@ func (nodedb *NodeDB) HandlePacket(p *pb.FromRadio) {
 					fmt.Printf("[NodeDB] Unmarshal error from !%x: %v\n", pkt.From, err)
 				} else {
 					hopsAway := meshtastic.HopsAway(pkt)
-					nodedb.updateUser(&user, &hopsAway)
+					db.updateUser(&user, &hopsAway)
 				}
 			}
 		}
 	}
 }
 
-func (nodedb *NodeDB) Run(ctx context.Context) {
-
-}
-
-func (nodedb *NodeDB) update(nodeInfo *pb.NodeInfo) {
+func (db *DB) update(nodeInfo *pb.NodeInfo) {
 	fmt.Printf("[NodeDB] NodeInfo !%x, via_mqtt: %v\n", nodeInfo.Num, nodeInfo.ViaMqtt)
+
 	if nodeInfo.User != nil {
-		nodedb.updateUser(nodeInfo.User, nodeInfo.HopsAway)
+		db.updateUser(nodeInfo.User, nodeInfo.HopsAway)
 	}
 }
 
-func (nodedb *NodeDB) updateUser(user *pb.User, hopsAway *uint32) {
+func (db *DB) updateUser(user *pb.User, hopsAway *uint32) {
 	infos := []string{
 		fmt.Sprintf("User Id '%s' role %s name '%s' '%s'\t", user.Id, user.Role, user.ShortName, user.LongName),
 	}

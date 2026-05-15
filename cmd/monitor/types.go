@@ -8,5 +8,6 @@ import (
 
 type Worker interface {
 	HandlePacket(*pb.FromRadio)
+	Init(ctx context.Context)
 	Run(context.Context)
 }
