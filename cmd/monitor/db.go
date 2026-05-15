@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	pb "github.com/pointnoreturn/monitor/github.com/meshtastic/go/generated"
 	"github.com/pointnoreturn/monitor/meshtastic"
@@ -47,7 +46,7 @@ func (db *DB) HandlePacket(p *pb.FromRadio) {
 }
 
 func (db *DB) update(nodeInfo *pb.NodeInfo) {
-	fmt.Printf("[NodeDB] NodeInfo !%x, via_mqtt: %v\n", nodeInfo.Num, nodeInfo.ViaMqtt)
+	//fmt.Printf("[NodeDB] NodeInfo !%x, via_mqtt: %v\n", nodeInfo.Num, nodeInfo.ViaMqtt)
 
 	if nodeInfo.User != nil {
 		db.updateUser(nodeInfo.User, nodeInfo.HopsAway)
@@ -56,7 +55,7 @@ func (db *DB) update(nodeInfo *pb.NodeInfo) {
 
 func (db *DB) updateUser(user *pb.User, hopsAway *uint32) {
 	infos := []string{
-		fmt.Sprintf("User Id '%s' role %s name '%s' '%s'\t", user.Id, user.Role, user.ShortName, user.LongName),
+		//fmt.Sprintf("User Id '%s' role %s name '%s' '%s'\t", user.Id, user.Role, user.ShortName, user.LongName),
 	}
 	if hopsAway != nil {
 		infos = append(infos, fmt.Sprintf("%d hops away", *hopsAway))
@@ -71,5 +70,5 @@ func (db *DB) updateUser(user *pb.User, hopsAway *uint32) {
 			infos = append(infos, "🔑 PKI")
 		}
 	}
-	fmt.Println("[NodeDB] " + strings.Join(infos, ", "))
+	//fmt.Println("[NodeDB] " + strings.Join(infos, ", "))
 }

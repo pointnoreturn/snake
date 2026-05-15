@@ -30,19 +30,20 @@ func (r *Reporter) Init(ctx context.Context) {
 var (
 	runtime = libmetric.AutoCommit{Name: "runtime"}
 
-	totalRX       = libmetric.AutoCommit{"total_rx"}
-	totalRX_4hops = libmetric.AutoCommit{"total_rx_4hops"}
-	totalUnknown  = libmetric.AutoCommit{"total_unknown"}
-	totalDecoded  = libmetric.AutoCommit{"total_decoded"}
-	senders       = libmetric.AutoCommit{"senders"}
+	totalRX      = libmetric.AutoCommit{"total_rx"}
+	rxProximity  = libmetric.AutoCommit{"rx_proximity"}
+	rxDirect     = libmetric.AutoCommit{"rx_direct"}
+	totalUnknown = libmetric.AutoCommit{"total_unknown"}
+	totalDecoded = libmetric.AutoCommit{"total_decoded"}
+	senders      = libmetric.AutoCommit{"senders"}
 
-	rssi = libmetric.Sampler{
+	rxRssi = libmetric.Sampler{
 		Name:     "rssi_p50",
 		Function: libmetric.MedianP50,
 		MinCount: 100,
 		MaxCount: 4000,
 	}
-	snr = libmetric.Sampler{
+	rxSnr = libmetric.Sampler{
 		Name:     "snr_p50",
 		Function: libmetric.MedianP50,
 		MinCount: 100,
@@ -71,7 +72,8 @@ func (r *Reporter) Run(ctx context.Context) {
 	t2 := groups[2].Ticker()
 	t3 := groups[3].Ticker()
 
-	commit := func(groupId int) {
+	commitGroup := func(groupId int) {
+		// Todo: batch API request
 		if ok := groups[groupId].Commit(); !ok {
 			// todo log
 		}
@@ -116,18 +118,18 @@ func (r *Reporter) Run(ctx context.Context) {
 			return
 
 		case <-t0.C:
-			commit(0)
+			commitGroup(0)
 
 		case <-t1.C:
-			commit(1)
+			commitGroup(1)
 
 		case <-t2.C:
 			updateWeather(2)
 			addRuntime(groups[2].Interval.Seconds())
-			commit(2)
+			commitGroup(2)
 
 		case <-t3.C:
-			commit(3)
+			commitGroup(3)
 		}
 	}
 }
@@ -142,36 +144,48 @@ func (r *Reporter) HandlePacket(p *pb.FromRadio) {
 			break
 		}
 
-		hopsAway := int(meshtastic.HopsAway(pkt))
-		if hopsAway > 7 || hopsAway < 0 {
-			hopsAway = -1
-		}
+		labels := []string{"self", fmt.Sprintf("%x", myNodeInfo.MyNodeNum)}
 
-		labels := []string{
-			"self", fmt.Sprintf("%x", myNodeInfo.MyNodeNum),
-			"hops", strconv.Itoa(hopsAway),
-		}
-
-		isStrong := pkt.RxRssi > -105 && pkt.RxSnr > -5
-		labels = append(labels, "strong", boolStr[isStrong])
-
-		groups[0].AddOne(&totalRX, labels...)
-
-		groups[2].Sample(&rssi, float64(pkt.RxRssi), labels...)
-		groups[2].Sample(&snr, float64(pkt.RxSnr), labels...)
-
-		d := pkt.GetDecoded()
-		if d == nil {
-			groups[0].AddOne(&totalUnknown, labels...)
-		} else {
-			groups[0].AddOne(&totalDecoded, labels...)
-		}
-
-		if hopsAway >= 0 && hopsAway <= 4 {
-			groups[0].AddOne(&totalRX_4hops, labels...)
-		}
-
-		labels = append(labels, "from", fmt.Sprintf("%x", pkt.From))
-		groups[1].AddOne(&senders, labels...)
+		logSenders(pkt, labels)
+		logRX(pkt, labels)
+		logContent(pkt, labels)
 	}
+}
+
+func logRX(pkt *pb.MeshPacket, labels []string) {
+	groups[2].Sample(&rxRssi, float64(pkt.RxRssi), labels...)
+	groups[2].Sample(&rxSnr, float64(pkt.RxSnr), labels...)
+
+	isStrong := pkt.RxRssi > -105 && pkt.RxSnr > -5
+	labels = append(labels, "strong", boolStr[isStrong])
+
+	groups[0].AddOne(&totalRX, labels...)
+}
+
+func logSenders(pkt *pb.MeshPacket, labels []string) {
+	hopsAway := int(meshtastic.HopsAway(pkt))
+	labels = append(labels, "from", fmt.Sprintf("%x", pkt.From))
+
+	if hopsAway <= 3 {
+		groups[0].AddOne(&rxProximity, labels...)
+	}
+	if hopsAway == 0 {
+		groups[0].AddOne(&rxDirect, labels...)
+	}
+
+	labels = append(labels, "hops", strconv.Itoa(hopsAway))
+	groups[1].AddOne(&senders, labels...)
+}
+
+func logContent(pkt *pb.MeshPacket, labels []string) {
+	d := pkt.GetDecoded()
+	if d == nil {
+		groups[0].AddOne(&totalUnknown, labels...)
+		return
+	}
+
+	s := d.Portnum.String()
+	fmt.Println(s)
+	labels = append(labels, "port", s)
+	groups[0].AddOne(&totalDecoded, labels...)
 }
