@@ -17,7 +17,6 @@ type Series struct {
 	key, name string
 	labels    []string
 	data      atomic.Uint64
-	changed   bool
 }
 
 func makeKey(name string, labels []string) string {
@@ -72,7 +71,6 @@ func (c *Series) AddOne() {
 		newVal := u64ToF64(old) + 1
 
 		if c.data.CompareAndSwap(old, f64ToU64(newVal)) {
-			c.changed = true
 			return
 		}
 	}
@@ -84,7 +82,6 @@ func (c *Series) Add(x float64) {
 		newVal := u64ToF64(old) + x
 
 		if c.data.CompareAndSwap(old, f64ToU64(newVal)) {
-			c.changed = true
 			return
 		}
 	}
@@ -98,21 +95,15 @@ func (c *Series) Set(x float64) {
 		newBits := f64ToU64(x)
 
 		if c.data.CompareAndSwap(old, newBits) {
-			c.changed = true
 			return
 		}
 	}
 }
 
 func (c *Series) Commit() error {
-	if !c.changed {
-		return nil
-	}
-
 	err := WriteMetric(c.name, c.Value(), c.labels...)
 	if err != nil {
 		logger.Error("[Series] Commit failed with error", "err", err)
-		c.changed = false
 	}
 	return err
 }

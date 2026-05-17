@@ -24,6 +24,6 @@ services:
     env_file: .env
     restart: unless-stopped
     environment:
-      LOG_LEVEL: debug
+      LOG_LEVEL: info
       VICTORIA_METRICS: http://127.0.0.1:8428
     network_mode: host

@@ -10,6 +10,7 @@ import (
 	"github.com/pointnoreturn/monitor/libmetric"
 	"github.com/pointnoreturn/monitor/libweather"
 	"github.com/pointnoreturn/monitor/meshtastic"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -36,28 +37,22 @@ var (
 	totalUnknown = libmetric.AutoCommit{"total_unknown"}
 	totalDecoded = libmetric.AutoCommit{"total_decoded"}
 	senders      = libmetric.AutoCommit{"senders"}
+	chUtil       = libmetric.AutoCommit{"ch_util"}
+	airUtilTx    = libmetric.AutoCommit{"air_util_tx"}
+	rxBad        = libmetric.AutoCommit{"rx_bad"}
 
-	rxRssi = libmetric.Sampler{
-		Name:     "rssi_p50",
-		Function: libmetric.MedianP50,
-		MinCount: 100,
-		MaxCount: 1000,
-	}
-	rxSnr = libmetric.Sampler{
-		Name:     "snr_p50",
-		Function: libmetric.MedianP50,
-		MinCount: 100,
-		MaxCount: 1000,
-	}
+	badPacketsBase uint32 = 0
 
+	rxRssi            = libmetric.AutoCommit{"rssi"}
+	rxSnr             = libmetric.AutoCommit{"snr"}
 	weatherDifficulty = libmetric.AutoCommit{"weather_difficulty"}
-	weatherTempA      = libmetric.AutoCommit{"temp_a"}
+	weatherTempC      = libmetric.AutoCommit{"temp_c"}
 
 	groups = []libmetric.Group{
 		{Interval: time.Second * 10},
+		{Interval: time.Second * 30},
 		{Interval: time.Minute * 3},
-		{Interval: time.Minute * 7},
-		{Interval: time.Minute * 15},
+		{Interval: time.Minute * 5},
 	}
 )
 
@@ -70,7 +65,7 @@ func (r *Reporter) Run(ctx context.Context) {
 	commitGroup := func(groupId int) {
 		// Todo: batch API request
 		if ok := groups[groupId].Commit(); !ok {
-			// todo log
+			appLog.Error("[Reporter] commitGroup failed")
 		}
 	}
 
@@ -82,27 +77,47 @@ func (r *Reporter) Run(ctx context.Context) {
 			"hw", strconv.Itoa(int(nodeInfo.User.HwModel)),
 		)
 		if !ok {
-			// todo log
+			appLog.Error("[Reporter] addRuntime failed")
 		}
+	}
+
+	refreshTelemetry := func(telemetry *pb.Telemetry) bool {
+		requestId, err := meshtastic.RequestTelemetry(ctx, dispatch, myNodeInfo.MyNodeNum, telemetry)
+		if err != nil {
+			appLog.Warn("[refreshTelemetry] RequestTelemetry() failed", "err", err, "type", fmt.Sprintf("%T", telemetry.Variant))
+			return false
+		}
+
+		appLog.Debug("[refreshTelemetry] RequestTelemetry sent", "requestId", requestId, "type", fmt.Sprintf("%T", telemetry.Variant))
+		return true
 	}
 
 	updateWeather := func(groupId int) {
 		if weather != nil {
 			w, err := weather.GetWeather(ctx)
 			if err != nil {
-				// todo log
+				appLog.Error("[Reporter] updateWeather failed", "err", err)
 			} else {
 				labels := []string{
 					"self", fmt.Sprintf("%x", myNodeInfo.MyNodeNum),
 					"location", w.Name,
 				}
-				groups[groupId].Set(
-					&weatherDifficulty, float64(w.RadioDifficulty()),
+				weatherDifficulty.Update(
+					float64(w.RadioDifficulty()),
 					labels...,
 				)
-				groups[groupId].Set(&weatherTempA, float64(w.TempCelsiusFeelsLike), labels...)
+				weatherTempC.Update(float64(w.TempCelsiusFeelsLike), labels...)
 			}
 		}
+	}
+
+	labels := []string{"self", fmt.Sprintf("%x", myNodeInfo.MyNodeNum)}
+	if badPacketsBase == 0 {
+		cRxBad, err := libmetric.MakeSeries(rxBad.Name, labels...)
+		if err != nil {
+			appLog.Warn("Failed to MakeSeries for RxBad", "labels", labels)
+		}
+		badPacketsBase = uint32(cRxBad.Value())
 	}
 
 	addRuntime(1)
@@ -116,41 +131,63 @@ func (r *Reporter) Run(ctx context.Context) {
 			commitGroup(0)
 
 		case <-t1.C:
+			refreshTelemetry(&pb.Telemetry{Variant: &pb.Telemetry_LocalStats{}})
 			commitGroup(1)
 
 		case <-t2.C:
-			updateWeather(2)
-			addRuntime(groups[2].Interval.Seconds())
+			refreshTelemetry(&pb.Telemetry{Variant: &pb.Telemetry_DeviceMetrics{}})
 			commitGroup(2)
 
 		case <-t3.C:
+			updateWeather(3)
+			addRuntime(groups[3].Interval.Seconds())
 			commitGroup(3)
 		}
 	}
 }
 
 func (r *Reporter) HandlePacket(p *pb.FromRadio) {
+	labels := []string{"self", fmt.Sprintf("%x", myNodeInfo.MyNodeNum)}
+
 	switch v := p.PayloadVariant.(type) {
 
 	case *pb.FromRadio_Packet:
 		pkt := v.Packet
 
 		if pkt.From == myNodeInfo.MyNodeNum {
-			break
+			if d := pkt.GetDecoded(); d != nil {
+				if d.ReplyId != 0 || d.RequestId != 0 {
+					onResponse(pkt, d, labels)
+				}
+			}
 		}
 
-		labels := []string{"self", fmt.Sprintf("%x", myNodeInfo.MyNodeNum)}
+		if pkt.From == myNodeInfo.MyNodeNum {
+			break
+		}
 
 		logRX(pkt, labels)
 		logDirect(pkt, labels)
 		logContent(pkt, labels)
 		logSenders(pkt, labels)
+	case *pb.FromRadio_QueueStatus:
+		break // ignore
+	default:
+		appLog.Warn("Unknown packet type", "type", fmt.Sprintf("%T", p.PayloadVariant))
 	}
 }
 
+func cloneLabels(l []string) []string {
+	out := make([]string, len(l))
+	copy(out, l)
+	return out
+}
+
 func logRX(pkt *pb.MeshPacket, labels []string) {
-	groups[1].Sample(&rxRssi, float64(pkt.RxRssi), labels...)
-	groups[1].Sample(&rxSnr, float64(pkt.RxSnr), labels...)
+	labels = cloneLabels(labels)
+
+	rxRssi.Update(float64(pkt.RxRssi), labels...)
+	rxSnr.Update(float64(pkt.RxSnr), labels...)
 
 	if d := pkt.GetDecoded(); d != nil {
 		labels = append(labels, "port", d.Portnum.String())
@@ -162,6 +199,8 @@ func logRX(pkt *pb.MeshPacket, labels []string) {
 }
 
 func logDirect(pkt *pb.MeshPacket, labels []string) {
+	labels = cloneLabels(labels)
+
 	hopsAway := int(meshtastic.HopsAway(pkt))
 	if hopsAway > 0 {
 		return
@@ -173,6 +212,8 @@ func logDirect(pkt *pb.MeshPacket, labels []string) {
 }
 
 func logSenders(pkt *pb.MeshPacket, labels []string) {
+	labels = cloneLabels(labels)
+
 	hopsAway := int(meshtastic.HopsAway(pkt))
 	labels = append(labels, "from", fmt.Sprintf("%x", pkt.From))
 
@@ -185,6 +226,8 @@ func logSenders(pkt *pb.MeshPacket, labels []string) {
 }
 
 func logContent(pkt *pb.MeshPacket, labels []string) {
+	labels = cloneLabels(labels)
+
 	d := pkt.GetDecoded()
 	if d == nil {
 		groups[0].AddOne(&totalUnknown, labels...)
@@ -192,4 +235,44 @@ func logContent(pkt *pb.MeshPacket, labels []string) {
 	}
 
 	groups[0].AddOne(&totalDecoded, labels...)
+}
+
+func onResponse(pkt *pb.MeshPacket, d *pb.Data, labels []string) {
+	labels = cloneLabels(labels)
+
+	switch d.Portnum {
+	case pb.PortNum_TELEMETRY_APP:
+		var telemetry pb.Telemetry
+		err := proto.Unmarshal(d.Payload, &telemetry)
+		if err != nil {
+			appLog.Error("Failed to Unmarshall telemetry packet", "err", err, "requestId", d.RequestId, "replyId", d.ReplyId, "id", pkt.Id)
+			break
+		}
+
+		appLog.Debug("Received telemetry", "type", fmt.Sprintf("%T", telemetry.Variant))
+		switch t := telemetry.Variant.(type) {
+		case *pb.Telemetry_DeviceMetrics:
+			appLog.Debug("Device metrics received")
+			groups[1].Update(&chUtil, float64(t.DeviceMetrics.GetChannelUtilization()), labels...)
+			groups[1].Update(&airUtilTx, float64(t.DeviceMetrics.GetAirUtilTx()), labels...)
+		case *pb.Telemetry_LocalStats:
+			appLog.Debug("Local stats received")
+
+			x := t.LocalStats.GetNumPacketsRxBad()
+			appLog.Debug("Received Bad packets", "device", x, "base", badPacketsBase)
+
+			if x < badPacketsBase {
+				x += badPacketsBase
+			}
+
+			if groups[0].Update(&rxBad, float64(x), labels...) {
+				appLog.Debug("Update rxBad metric", "value", x)
+				badPacketsBase = x
+			}
+		default:
+			appLog.Debug("Unhandled telemetry type", "replyId", d.ReplyId, "id", pkt.Id, "requestId", d.RequestId)
+		}
+	default:
+		appLog.Debug("Unhandled response type", "replyId", d.ReplyId, "id", pkt.Id, "requestId", d.RequestId)
+	}
 }

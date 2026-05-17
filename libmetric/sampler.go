@@ -2,6 +2,7 @@ package libmetric
 
 import (
 	"sort"
+	"sync"
 
 	"gonum.org/v1/gonum/stat"
 )
@@ -10,6 +11,9 @@ type SampleF func([]float64) float64
 
 var (
 	Average SampleF = func(row []float64) float64 {
+		if len(row) == 0 {
+			return 0
+		}
 		return stat.Mean(row, nil)
 	}
 
@@ -46,85 +50,93 @@ var (
 	}
 
 	Sum SampleF = func(row []float64) float64 {
-		var sum float64
+		var s float64
 		for i := range row {
-			sum += row[i]
+			s += row[i]
 		}
-		return sum
+		return s
 	}
 
 	Min SampleF = func(row []float64) float64 {
 		if len(row) == 0 {
 			return 0
 		}
-
-		min := row[0]
+		m := row[0]
 		for i := 1; i < len(row); i++ {
-			if row[i] < min {
-				min = row[i]
+			if row[i] < m {
+				m = row[i]
 			}
 		}
-		return min
+		return m
 	}
 
 	Max SampleF = func(row []float64) float64 {
 		if len(row) == 0 {
 			return 0
 		}
-
-		max := row[0]
+		m := row[0]
 		for i := 1; i < len(row); i++ {
-			if row[i] > max {
-				max = row[i]
+			if row[i] > m {
+				m = row[i]
 			}
 		}
-		return max
+		return m
 	}
 )
 
 type Sampler struct {
 	Name     string
-	MinCount int     // minimum number of samples before writing metric
-	MaxCount int     // maximum number of latest samples sent to function
-	Function SampleF // function to calculate value of the metric
+	MinCount int
+	MaxCount int
+	Function SampleF
 
+	mu      sync.Mutex
 	samples map[string][]float64
 }
 
-func (s *Sampler) Sample(x float64, labels ...string) bool {
-	c, err := MakeSeries(s.Name, labels...)
-	if err != nil {
-		// todo log
-		return false
-	}
-
-	if s.samples == nil {
-		s.samples = make(map[string][]float64)
-		s.samples[c.key] = []float64{x}
-	} else if old := s.samples[c.key]; old != nil {
-		s.samples[c.key] = append(old, x)
-	} else {
-		s.samples[c.key] = []float64{x}
-	}
-
+func (s *Sampler) ensureDefaults() {
 	if s.MaxCount <= 0 {
 		s.MaxCount = 100
 	}
-
-	if len(s.samples[c.key]) > s.MaxCount {
-		s.samples[c.key] = s.samples[c.key][1:]
-	}
-
-	if s.MinCount > 0 && len(s.samples[c.key]) < s.MinCount {
-		return false
-	}
-
 	if s.Function == nil {
 		s.Function = Sum
 	}
+	if s.samples == nil {
+		s.samples = make(map[string][]float64)
+	}
+}
 
-	var value float64 = s.Function(s.samples[c.key])
+func (s *Sampler) Sample(x float64, labels ...string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
+	s.ensureDefaults()
+
+	c, err := MakeSeries(s.Name, labels...)
+	if err != nil {
+		logger.Error("[Sampler] Sample error", "err", err)
+		return false
+	}
+
+	// safely append without aliasing issues
+	old := s.samples[c.key]
+	cp := make([]float64, len(old)+1)
+	copy(cp, old)
+	cp[len(old)] = x
+	s.samples[c.key] = cp
+
+	// bounded window (stable truncation)
+	if len(cp) > s.MaxCount {
+		s.samples[c.key] = cp[len(cp)-s.MaxCount:]
+		cp = s.samples[c.key]
+	}
+
+	// only emit when ready
+	if s.MinCount > 0 && len(cp) < s.MinCount {
+		return true
+	}
+
+	value := s.Function(cp)
 	c.Set(value)
 
 	return true

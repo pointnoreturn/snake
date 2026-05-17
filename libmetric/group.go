@@ -7,7 +7,7 @@ import (
 
 type Group struct {
 	Interval      time.Duration
-	pendingWrites map[*Series]bool
+	pendingWrites map[string]*Series
 }
 
 func (g *Group) AddOne(a *AutoCommit, labels ...string) bool {
@@ -19,12 +19,10 @@ func (g *Group) AddOne(a *AutoCommit, labels ...string) bool {
 
 	s.AddOne()
 
-	if s.changed {
-		if g.pendingWrites == nil {
-			g.pendingWrites = make(map[*Series]bool)
-		}
-		g.pendingWrites[s] = true
+	if g.pendingWrites == nil {
+		g.pendingWrites = make(map[string]*Series)
 	}
+	g.pendingWrites[s.key] = s
 
 	return true
 }
@@ -38,17 +36,15 @@ func (g *Group) Add(a *AutoCommit, x float64, labels ...string) bool {
 
 	s.Add(x)
 
-	if s.changed {
-		if g.pendingWrites == nil {
-			g.pendingWrites = make(map[*Series]bool)
-		}
-		g.pendingWrites[s] = true
+	if g.pendingWrites == nil {
+		g.pendingWrites = make(map[string]*Series)
 	}
+	g.pendingWrites[s.key] = s
 
 	return true
 }
 
-func (g *Group) Set(a *AutoCommit, x float64, labels ...string) bool {
+func (g *Group) Update(a *AutoCommit, x float64, labels ...string) bool {
 	s, err := MakeSeries(a.Name, labels...)
 	if err != nil {
 		logger.Error("[Group] Set error", "err", err)
@@ -58,9 +54,9 @@ func (g *Group) Set(a *AutoCommit, x float64, labels ...string) bool {
 	s.Set(x)
 
 	if g.pendingWrites == nil {
-		g.pendingWrites = make(map[*Series]bool)
+		g.pendingWrites = make(map[string]*Series)
 	}
-	g.pendingWrites[s] = true
+	g.pendingWrites[s.key] = s
 
 	return true
 }
@@ -72,12 +68,12 @@ func (g *Group) Sample(a *Sampler, x float64, labels ...string) bool {
 		return false
 	}
 
-	if a.Sample(x) {
-		if g.pendingWrites == nil {
-			g.pendingWrites = make(map[*Series]bool)
-		}
-		g.pendingWrites[s] = true
+	a.Sample(x)
+
+	if g.pendingWrites == nil {
+		g.pendingWrites = make(map[string]*Series)
 	}
+	g.pendingWrites[s.key] = s
 
 	return true
 }
@@ -90,14 +86,14 @@ func (g *Group) Commit() bool {
 		return true
 	}
 
-	leftovers := make(map[*Series]bool)
+	leftovers := make(map[string]*Series)
 
-	for s := range g.pendingWrites {
+	for _, s := range g.pendingWrites {
 		logger.Debug(fmt.Sprintf("[Group] Commit %s", s.name))
 		err := s.Commit()
 		if err != nil {
 			errs = append(errs, err)
-			leftovers[s] = true
+			leftovers[s.key] = s
 		}
 	}
 

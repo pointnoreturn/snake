@@ -22,8 +22,8 @@ const maxToFromRadioSzie = 512
 // read and write Meshtastic Protobuf packets on the underrelying Stream using magic byte codings
 type ProtoStream struct {
 	libradios.Transport
-	libradios.Writer[*pb.ToRadio]
-	libradios.Reader[*pb.FromRadio]
+	Writer
+	Reader
 	Log *slog.Logger
 }
 
@@ -148,5 +148,5 @@ func (stream *ProtoStream) ReadPackets(ctx context.Context, timeout bool) ([]*pb
 		}
 	}
 
-	return packets, nil
+	return packets, nil // TODO wtf
 }
